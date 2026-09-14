@@ -1,6 +1,23 @@
 {
-  "currentKeys": [],
-  "initialized": false,
-  "known": {},
-  "schemaVersion": 1
+  "baselineAt": "2026-09-14T06:12:09Z",
+  "currentKeys": [
+    "ctkm ben co cau vung doanh so 2026",
+    "ctkm he vi sinh duong ruot can bang mo loi song khoe"
+  ],
+  "initialized": true,
+  "known": {
+    "ctkm ben co cau vung doanh so 2026": {
+      "detailUrl": "https://www.amway.com.vn/vn/sop-2026",
+      "firstSeenAt": "2026-09-14T06:12:09Z",
+      "title": "CTKM: BỀN CƠ CẤU VỮNG DOANH SỐ 2026"
+    },
+    "ctkm he vi sinh duong ruot can bang mo loi song khoe": {
+      "detailUrl": "https://www.amway.com.vn/vn",
+      "firstSeenAt": "2026-09-14T06:12:09Z",
+      "title": "CTKM: HỆ VI SINH ĐƯỜNG RUỘT CÂN BẰNG MỞ LỐI SỐNG KHỎE"
+    }
+  },
+  "lastStateChangeAt": "2026-09-14T06:12:09Z",
+  "schemaVersion": 1,
+  "sourceUrl": "https://www.amway.com.vn/vn/promotions"
 }

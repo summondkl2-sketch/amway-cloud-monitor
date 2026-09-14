@@ -38,6 +38,7 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import urllib.error
           import urllib.parse
           import urllib.request
 
@@ -56,8 +57,13 @@ jobs:
               data=body,
               method="POST",
           )
-          with urllib.request.urlopen(request, timeout=20) as response:
-              payload = json.loads(response.read().decode("utf-8"))
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode("utf-8", errors="replace")
+              raise SystemExit(f"Telegram API HTTP {exc.code}: {detail}")
+
           if not payload.get("ok"):
               raise SystemExit(f"Telegram API trả lỗi: {payload}")
           print("Đã gửi tin nhắn test Telegram.")
@@ -80,6 +86,7 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import urllib.error
           import urllib.parse
           import urllib.request
           from pathlib import Path
@@ -109,8 +116,13 @@ jobs:
               data=body,
               method="POST",
           )
-          with urllib.request.urlopen(request, timeout=20) as response:
-              payload = json.loads(response.read().decode("utf-8"))
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode("utf-8", errors="replace")
+              raise SystemExit(f"Telegram API HTTP {exc.code}: {detail}")
+
           if not payload.get("ok"):
               raise SystemExit(f"Telegram API trả lỗi: {payload}")
           print("Đã gửi cảnh báo Telegram.")

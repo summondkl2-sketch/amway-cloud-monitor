@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      test_current_promotions:
+        description: 'Quét Amway thật và gửi Telegram danh sách khuyến mãi đang có (không đổi baseline)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -75,9 +80,66 @@ jobs:
           CHROME_BIN: /usr/bin/google-chrome
         run: python3 monitor.py
 
+      - name: Send current promotions test to Telegram
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.test_current_promotions && !inputs.test_telegram }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          if not token or not chat_id:
+              raise SystemExit("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID")
+
+          result = json.loads(Path("data/last-run.json").read_text(encoding="utf-8"))
+          if not result.get("ok"):
+              raise SystemExit(f"Lần quét Amway thất bại: {result.get('error', 'unknown error')}")
+
+          titles = result.get("titles") or []
+          if not titles:
+              raise SystemExit("Không đọc được khuyến mãi nào từ Amway")
+
+          lines = [
+              f"🧪 TEST: Amway hiện có {len(titles)} chương trình khuyến mãi:",
+              "",
+          ]
+          lines.extend(f"• {title}" for title in titles)
+          lines.extend(["", "https://www.amway.com.vn/vn/promotions"])
+          message = "\n".join(lines)
+
+          body = urllib.parse.urlencode({
+              "chat_id": chat_id,
+              "text": message,
+              "disable_web_page_preview": "true",
+          }).encode("utf-8")
+          request = urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=body,
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.loads(response.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode("utf-8", errors="replace")
+              raise SystemExit(f"Telegram API HTTP {exc.code}: {detail}")
+
+          if not payload.get("ok"):
+              raise SystemExit(f"Telegram API trả lỗi: {payload}")
+          print(f"Đã gửi danh sách {len(titles)} khuyến mãi hiện tại qua Telegram.")
+          PY
+
       - name: Notify Telegram when a new promotion appears
         id: telegram
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) && hashFiles('data/notification.md') != '' }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.test_telegram || inputs.test_current_promotions)) && hashFiles('data/notification.md') != '' }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -129,7 +191,7 @@ jobs:
           PY
 
       - name: Fallback to GitHub Issue if Telegram failed
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) && hashFiles('data/notification.md') != '' && steps.telegram.outcome != 'success' }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.test_telegram || inputs.test_current_promotions)) && hashFiles('data/notification.md') != '' && steps.telegram.outcome != 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -147,7 +209,7 @@ jobs:
             --body-file data/notification.md
 
       - name: Save monitor state
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.test_telegram || inputs.test_current_promotions)) }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

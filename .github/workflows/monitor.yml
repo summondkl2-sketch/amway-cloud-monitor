@@ -5,6 +5,12 @@ on:
     # Tránh phút 00/30 là thời điểm GitHub Actions thường đông tải hơn.
     - cron: '17,47 * * * *'
   workflow_dispatch:
+    inputs:
+      test_telegram:
+        description: 'Chỉ gửi tin nhắn test Telegram (không kiểm tra Amway, không đổi baseline)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -23,14 +29,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test Telegram connection
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.test_telegram }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          if not token or not chat_id:
+              raise SystemExit("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID")
+
+          body = urllib.parse.urlencode({
+              "chat_id": chat_id,
+              "text": "✅ Amway Cloud Monitor: Telegram đã kết nối thành công.",
+              "disable_web_page_preview": "true",
+          }).encode("utf-8")
+          request = urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=body,
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              payload = json.loads(response.read().decode("utf-8"))
+          if not payload.get("ok"):
+              raise SystemExit(f"Telegram API trả lỗi: {payload}")
+          print("Đã gửi tin nhắn test Telegram.")
+          PY
+
       - name: Check Amway promotions
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) }}
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: python3 monitor.py
 
       - name: Notify Telegram when a new promotion appears
         id: telegram
-        if: ${{ hashFiles('data/notification.md') != '' }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) && hashFiles('data/notification.md') != '' }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -76,7 +117,7 @@ jobs:
           PY
 
       - name: Fallback to GitHub Issue if Telegram failed
-        if: ${{ hashFiles('data/notification.md') != '' && steps.telegram.outcome != 'success' }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) && hashFiles('data/notification.md') != '' && steps.telegram.outcome != 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -94,6 +135,7 @@ jobs:
             --body-file data/notification.md
 
       - name: Save monitor state
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.test_telegram) }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -1,0 +1,106 @@
+name: Amway Promotion Monitor
+
+on:
+  schedule:
+    # Tránh phút 00/30 là thời điểm GitHub Actions thường đông tải hơn.
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: amway-promotion-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Amway promotions
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: python3 monitor.py
+
+      - name: Notify Telegram when a new promotion appears
+        id: telegram
+        if: ${{ hashFiles('data/notification.md') != '' }}
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          if not token or not chat_id:
+              raise SystemExit("Thiếu TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID")
+
+          result = json.loads(Path("data/last-run.json").read_text(encoding="utf-8"))
+          count = int(result.get("newCount", 0))
+          if count <= 0:
+              print("Không có khuyến mãi mới.")
+              raise SystemExit(0)
+
+          message = (
+              f"🔔 Amway có {count} chương trình khuyến mãi mới.\n"
+              "https://www.amway.com.vn/vn/promotions"
+          )
+          body = urllib.parse.urlencode({
+              "chat_id": chat_id,
+              "text": message,
+              "disable_web_page_preview": "true",
+          }).encode("utf-8")
+          request = urllib.request.Request(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              data=body,
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              payload = json.loads(response.read().decode("utf-8"))
+          if not payload.get("ok"):
+              raise SystemExit(f"Telegram API trả lỗi: {payload}")
+          print("Đã gửi cảnh báo Telegram.")
+          PY
+
+      - name: Fallback to GitHub Issue if Telegram failed
+        if: ${{ hashFiles('data/notification.md') != '' && steps.telegram.outcome != 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COUNT=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data/last-run.json')
+          print(json.loads(p.read_text(encoding='utf-8')).get('newCount', 0))
+          PY
+          )
+          sed -i "s/@\${GITHUB_REPOSITORY_OWNER}/@${GITHUB_REPOSITORY_OWNER}/g" data/notification.md
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "🔔 Amway có khuyến mãi mới (${COUNT})" \
+            --body-file data/notification.md
+
+      - name: Save monitor state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/state.json
+          if git diff --cached --quiet; then
+            echo "State không thay đổi."
+            exit 0
+          fi
+          git commit -m "chore: update Amway monitor state"
+          git push

@@ -2,7 +2,6 @@
   "baselineAt": "2026-09-14T06:12:09Z",
   "currentKeys": [
     "ctkm ben co cau vung doanh so 2026",
-    "ctkm he vi sinh duong ruot can bang mo loi song khoe",
     "ctkm thang cua nang ngap tran uu dai"
   ],
   "initialized": true,
@@ -18,12 +17,13 @@
       "title": "CTKM: HỆ VI SINH ĐƯỜNG RUỘT CÂN BẰNG MỞ LỐI SỐNG KHỎE"
     },
     "ctkm thang cua nang ngap tran uu dai": {
-      "detailUrl": "https://www.amway.com.vn/vn/thang-cua-nang-ngap-tran-uu-dai",
+      "detailUrl": "https://www.amway.com.vn/vn",
       "firstSeenAt": "2026-10-12T09:48:17Z",
+      "lastMetadataChangeAt": "2026-10-14T12:04:44Z",
       "title": "CTKM: THÁNG CỦA NÀNG NGẬP TRÀN ƯU ĐÃI"
     }
   },
-  "lastStateChangeAt": "2026-10-12T09:48:17Z",
+  "lastStateChangeAt": "2026-10-14T12:04:44Z",
   "schemaVersion": 1,
   "sourceUrl": "https://www.amway.com.vn/vn/promotions"
 }
